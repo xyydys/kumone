@@ -28,10 +28,12 @@ struct SkeletonView: View {
 
 struct SkeletonCardView: View {
     var size: CGFloat = Theme.Layout.cardSize
+    @Environment(\.cardCornerRadius) private var customCornerRadius
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SkeletonView().frame(width: size, height: size)
+            SkeletonView(cornerRadius: customCornerRadius ?? Theme.Radius.standard)
+                .frame(width: size, height: size)
             SkeletonView(cornerRadius: 4).frame(width: size * 0.8, height: 12)
             SkeletonView(cornerRadius: 4).frame(width: size * 0.5, height: 10)
         }

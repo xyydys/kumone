@@ -106,6 +106,7 @@ final class HomeViewModel: ObservableObject {
 struct HomeView: View {
     @EnvironmentObject private var account: AccountStore
     @EnvironmentObject private var player: PlayerService
+    @EnvironmentObject private var settings: SettingsManager
     @StateObject private var model = HomeViewModel.shared
 
     var body: some View {
@@ -122,6 +123,7 @@ struct HomeView: View {
                 loadedBody
             }
         }
+        .environment(\.cardCornerRadius, settings.homeCardCornerRadius)
         .navigationTitle("推荐")
         .task(id: account.isLoggedIn) {
             await model.load(loggedIn: account.isLoggedIn)
@@ -133,7 +135,7 @@ struct HomeView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(0..<3, id: \.self) { _ in
-                        SkeletonView(cornerRadius: Theme.Radius.large)
+                        SkeletonView(cornerRadius: settings.homeCardCornerRadius ?? Theme.Radius.large)
                             .frame(width: 230, height: 132)
                     }
                 }
@@ -351,13 +353,14 @@ struct HomeView: View {
     }
 
     private func toplistCard(_ toplist: ToplistItem) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let cornerRadius = settings.homeCardCornerRadius ?? Theme.Radius.standard
+        return VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .bottomLeading) {
                 CachedAsyncImage(url: toplist.coverImgUrl?.resizedImageURL(384))
                     .frame(width: Theme.Layout.cardSize, height: Theme.Layout.cardSize)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.standard, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.standard, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 Text(toplist.updateFrequency ?? "")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.white.opacity(0.9))
@@ -398,6 +401,10 @@ struct FeatureCard: View {
                              Color(red: 0.95, green: 0.35, blue: 0.28)]
     var showsDate = false
 
+    @Environment(\.cardCornerRadius) private var customCornerRadius
+
+    private var cornerRadius: CGFloat { customCornerRadius ?? Theme.Radius.large }
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if let coverURL {
@@ -436,9 +443,9 @@ struct FeatureCard: View {
             .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
         }
         .frame(width: 230, height: 132)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
         )
         .contentShape(Rectangle())
@@ -456,25 +463,32 @@ struct CoverCardBody: View {
 
     @State private var isHovering = false
     @Environment(\.flexibleCardWidth) private var flexibleWidth
+    @Environment(\.cardCornerRadius) private var customCornerRadius
+
+    private var cornerRadius: CGFloat { customCornerRadius ?? Theme.Radius.standard }
+
+    /// Keeps the play-count capsule (about 9 pt corner radius) concentric with
+    /// a rounder card corner; stock 6 pt for the default radius.
+    private var badgeInset: CGFloat { max(6, cornerRadius - 9) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             artwork
-                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.standard, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: Theme.Radius.standard, style: .continuous)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .strokeBorder(.primary.opacity(0.08), lineWidth: 0.5)
                 )
                 .overlay(alignment: .topTrailing) {
                     if playCount > 0 {
                         PlayCountBadge(count: playCount)
-                            .padding(6)
+                            .padding(badgeInset)
                     }
                 }
                 .overlay(alignment: .bottomLeading) {
                     if let onPlay {
                         PlayOverlayButton(visible: isHovering, action: onPlay)
-                            .padding(8)
+                            .padding(max(8, badgeInset))
                     }
                 }
 

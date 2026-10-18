@@ -126,7 +126,8 @@ final class SettingsManager: ObservableObject {
         static let miniPlayerArtworkScale = "settings.miniPlayerArtworkScale"
         static let miniPlayerArtworkSpins = "settings.miniPlayerArtworkSpins"
         static let miniPlayerArtworkRPM = "settings.miniPlayerArtworkRPM"
-        static let circularSystemArtwork = "settings.circularSystemArtwork"
+        static let customCardCornerRadius = "settings.customCardCornerRadius"
+        static let cardCornerRadius = "settings.cardCornerRadius"
     }
 
     @Published var audioQuality: AudioQuality {
@@ -344,14 +345,22 @@ final class SettingsManager: ObservableObject {
         didSet { UserDefaults.standard.set(miniPlayerArtworkRPM, forKey: Keys.miniPlayerArtworkRPM) }
     }
 
-    /// Hand the system Now Playing surfaces (Dynamic Island, lock screen,
-    /// Control Center) disc-shaped artwork. iOS draws those itself, so the
-    /// disc there is round but cannot turn.
-    @Published var circularSystemArtwork: Bool {
-        didSet {
-            UserDefaults.standard.set(circularSystemArtwork, forKey: Keys.circularSystemArtwork)
-            NowPlayingManager.shared.refreshArtwork()
-        }
+    static let cardCornerRadiusRange = 0.0...40.0
+
+    /// Give the cards on 推荐 and 精选 `cardCornerRadius` instead of their
+    /// stock radii (8 pt covers, 12 pt feature cards).
+    @Published var customCardCornerRadius: Bool {
+        didSet { UserDefaults.standard.set(customCardCornerRadius, forKey: Keys.customCardCornerRadius) }
+    }
+
+    /// Continuous corner radius, in points, for those cards.
+    @Published var cardCornerRadius: Double {
+        didSet { UserDefaults.standard.set(cardCornerRadius, forKey: Keys.cardCornerRadius) }
+    }
+
+    /// The radius the 推荐 / 精选 cards should use; nil keeps their defaults.
+    var homeCardCornerRadius: CGFloat? {
+        customCardCornerRadius ? CGFloat(cardCornerRadius) : nil
     }
     private init() {
         let defaults = UserDefaults.standard
@@ -414,6 +423,12 @@ final class SettingsManager: ObservableObject {
             max(storedArtworkRPM, Self.miniPlayerArtworkRPMRange.lowerBound),
             Self.miniPlayerArtworkRPMRange.upperBound
         )
-        circularSystemArtwork = defaults.object(forKey: Keys.circularSystemArtwork) as? Bool ?? false
+        customCardCornerRadius = defaults.object(forKey: Keys.customCardCornerRadius) as? Bool ?? false
+        let storedCardCornerRadius = defaults.object(forKey: Keys.cardCornerRadius) as? Double
+            ?? Double(Theme.Radius.standard)
+        cardCornerRadius = min(
+            max(storedCardCornerRadius, Self.cardCornerRadiusRange.lowerBound),
+            Self.cardCornerRadiusRange.upperBound
+        )
     }
 }

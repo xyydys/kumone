@@ -1,9 +1,6 @@
 import Combine
 import Foundation
 import MediaPlayer
-#if os(iOS)
-import UIKit
-#endif
 
 /// System Now Playing integration: media keys, Control Center, lock-screen metadata.
 @MainActor
@@ -12,7 +9,6 @@ final class NowPlayingManager {
 
     private weak var player: PlayerService?
     private var artworkTask: Task<Void, Never>?
-    private var artworkURL: URL?
     private var playbackStateCancellables: Set<AnyCancellable> = []
     private var info: [String: Any] = [:]
 
@@ -154,43 +150,18 @@ final class NowPlayingManager {
         artworkTask?.cancel()
         // 1024px: the lock screen's tap-to-fullscreen artwork presentation
         // needs high-resolution art to engage.
-        artworkURL = track.album.picUrl?.resizedImageURL(1024)
-        guard let url = artworkURL else { return }
-        loadArtwork(from: url)
-    }
-
-    /// Re-applies the current track's artwork, e.g. after the disc-shaped
-    /// system artwork setting changes.
-    func refreshArtwork() {
-        guard let artworkURL, !info.isEmpty else { return }
-        loadArtwork(from: artworkURL)
-    }
-
-    private func loadArtwork(from url: URL) {
-        artworkTask?.cancel()
+        guard let url = track.album.picUrl?.resizedImageURL(1024) else { return }
         artworkTask = Task { [weak self] in
             let apply: ImageCache.CachedImageHandler = { [weak self] image in
                 guard let self, !Task.isCancelled else { return }
-                self.info[MPMediaItemPropertyArtwork] = NowPlayingManager.systemArtwork(for: image)
+                let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                self.info[MPMediaItemPropertyArtwork] = artwork
                 MPNowPlayingInfoCenter.default().nowPlayingInfo = self.info
             }
             if let image = await ImageCache.shared.image(for: url, onCachedImage: apply) {
                 apply(image)
             }
         }
-    }
-
-    private static func systemArtwork(for image: PlatformImage) -> MPMediaItemArtwork {
-        #if os(iOS)
-        if SettingsManager.shared.circularSystemArtwork {
-            let renderer = CircularArtworkRenderer(source: image)
-            let side = min(image.size.width, image.size.height)
-            return MPMediaItemArtwork(boundsSize: CGSize(width: side, height: side)) { size in
-                renderer.image(for: size)
-            }
-        }
-        #endif
-        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
     }
 
     func updateElapsed(_ elapsed: TimeInterval, rate: Double) {
@@ -203,41 +174,9 @@ final class NowPlayingManager {
     func clear() {
         artworkTask?.cancel()
         artworkTask = nil
-        artworkURL = nil
         info = [:]
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         MPNowPlayingInfoCenter.default().playbackState = .stopped
         MPRemoteCommandCenter.shared().likeCommand.isActive = false
     }
 }
-
-#if os(iOS)
-/// Masks now-playing artwork to a disc with transparent corners, so the
-/// system's rounded-square artwork slots (Dynamic Island, lock screen, Control
-/// Center) show a circle. MediaPlayer asks for the image on its own queue,
-/// possibly more than once, so the render happens there, on first request,
-/// and is reused for repeat requests of the same size.
-private final class CircularArtworkRenderer: @unchecked Sendable {
-    /// In points; `circularCropped` renders at the screen scale.
-    private static let maximumDiameter: CGFloat = 512
-
-    private let source: UIImage
-    private let lock = NSLock()
-    private var cached: (diameter: CGFloat, image: UIImage)?
-
-    init(source: UIImage) {
-        self.source = source
-    }
-
-    func image(for size: CGSize) -> UIImage {
-        let requested = min(size.width, size.height)
-        let diameter = requested > 0 ? min(requested, Self.maximumDiameter) : Self.maximumDiameter
-        lock.lock()
-        defer { lock.unlock() }
-        if let cached, cached.diameter == diameter { return cached.image }
-        let image = source.circularCropped(diameter: diameter)
-        cached = (diameter, image)
-        return image
-    }
-}
-#endif

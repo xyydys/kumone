@@ -76,6 +76,7 @@ final class ExploreViewModel: ObservableObject {
 struct ExploreView: View {
     @StateObject private var model = ExploreViewModel.shared
     @EnvironmentObject private var player: PlayerService
+    @EnvironmentObject private var settings: SettingsManager
 
     var body: some View {
         ScrollView {
@@ -123,6 +124,7 @@ struct ExploreView: View {
                 PlayerClearanceSpacer()
             }
         }
+        .environment(\.cardCornerRadius, settings.homeCardCornerRadius)
         .navigationTitle("精选")
         .task {
             if model.playlists.isEmpty, model.toplists.isEmpty {
@@ -168,6 +170,14 @@ struct ExploreView: View {
 struct ToplistGrid: View {
     let toplists: [ToplistItem]
 
+    @Environment(\.cardCornerRadius) private var customCornerRadius
+
+    private var coverCornerRadius: CGFloat { customCornerRadius ?? Theme.Radius.standard }
+
+    /// The row pads its cover by 10 pt; adding that keeps the two corners
+    /// concentric once the radius is customised.
+    private var rowCornerRadius: CGFloat { customCornerRadius.map { $0 + 10 } ?? Theme.Radius.large }
+
     var body: some View {
         LazyVGrid(
             columns: [GridItem(.adaptive(minimum: 300, maximum: 420), spacing: 20)],
@@ -178,7 +188,7 @@ struct ToplistGrid: View {
                     HStack(spacing: 14) {
                         CachedAsyncImage(url: toplist.coverImgUrl?.resizedImageURL(256))
                             .frame(width: 110, height: 110)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.standard, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: coverCornerRadius, style: .continuous))
                         VStack(alignment: .leading, spacing: 5) {
                             Text(toplist.name)
                                 .font(.system(size: 14, weight: .semibold))
@@ -200,7 +210,7 @@ struct ToplistGrid: View {
                     }
                     .padding(10)
                     .background(.primary.opacity(0.04),
-                                in: RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous))
+                                in: RoundedRectangle(cornerRadius: rowCornerRadius, style: .continuous))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

@@ -151,6 +151,17 @@ extension EnvironmentValues {
     }
 }
 
+/// Corner radius picked in Settings for the 推荐 / 精选 cards; nil keeps each
+/// card's stock radius. Only those two pages set it, so the same cards on
+/// other pages (search, artist, album) keep the stock look.
+private struct CardCornerRadiusKey: EnvironmentKey { static let defaultValue: CGFloat? = nil }
+extension EnvironmentValues {
+    var cardCornerRadius: CGFloat? {
+        get { self[CardCornerRadiusKey.self] }
+        set { self[CardCornerRadiusKey.self] = newValue }
+    }
+}
+
 struct CardGrid<Content: View>: View {
     var minWidth: CGFloat = Theme.Layout.cardSize
     @ViewBuilder var content: () -> Content

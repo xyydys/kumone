@@ -171,6 +171,39 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                     }
                 }
+                Toggle("自定义卡片圆角", isOn: $settings.customCardCornerRadius)
+                if settings.customCardCornerRadius {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("卡片圆角")
+                            Spacer()
+                            Text("\(Int(settings.cardCornerRadius.rounded())) pt")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(
+                            value: $settings.cardCornerRadius,
+                            in: SettingsManager.cardCornerRadiusRange,
+                            step: 1
+                        )
+                        HStack {
+                            Text("0")
+                            Spacer()
+                            Text("40")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        // Real card size, so the corner reads as it will on the page.
+                        RoundedRectangle(cornerRadius: CGFloat(settings.cardCornerRadius), style: .continuous)
+                            .fill(Theme.accentGradient)
+                            .frame(width: Theme.Layout.cardSize, height: Theme.Layout.cardSize)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                            .accessibilityHidden(true)
+                    }
+                }
+                Text("作用于推荐和精选页的卡片，使用连续圆角；关闭时恢复默认（封面 8 pt、顶部大卡片 12 pt）")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 #if os(macOS)
                 Toggle("桌面歌词", isOn: $settings.showDesktopLyrics)
                 if settings.showDesktopLyrics {
@@ -316,11 +349,6 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                 }
             }
-
-            Toggle("灵动岛圆形封面", isOn: $settings.circularSystemArtwork)
-            Text("灵动岛、锁屏和控制中心的播放卡片由系统绘制，只能换成圆形封面，无法旋转")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         } header: {
             Text("播放悬浮条")
         } footer: {
