@@ -446,6 +446,13 @@ struct IOSMiniPlayerBar: View {
     @EnvironmentObject private var player: PlayerService
     let presentation: Presentation
 
+    /// Height of the glass the bar sits in, measured so the artwork disc can
+    /// share a centre with the capsule's leading end cap.
+    @State private var measuredBarHeight: CGFloat = 0
+
+    /// The pre-iOS 26 overlay draws its own capsule, so it sets its height.
+    private static let legacyBarHeight: CGFloat = 52
+
     var body: some View {
         playerBarSurface
             .simultaneousGesture(expandGesture)
@@ -511,21 +518,26 @@ struct IOSMiniPlayerBar: View {
                 .accessibilityLabel("下一首")
             }
         }
-        .padding(.leading, 12)
         .padding(.trailing, 6)
-        .padding(.vertical, 4)
         .frame(maxWidth: .infinity)
+        // The system accessories own the glass, so fill it to learn its
+        // height; the legacy overlay's capsule is drawn around this frame.
+        .frame(height: presentation.drawsBackground ? Self.legacyBarHeight : nil)
+        .frame(maxHeight: presentation.drawsBackground ? nil : .infinity)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { height in
+            measuredBarHeight = height
+        }
     }
 
     private var trackSummary: some View {
-        HStack(alignment: .top, spacing: 8) {
-            CachedAsyncImage(url: player.currentTrack?.album.picUrl?.resizedImageURL(128))
-                .frame(
-                    width: artworkSize,
-                    height: artworkSize
-                )
-                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
-                .shadow(color: .black.opacity(0.15), radius: 4, y: 1)
+        HStack(spacing: 8) {
+            MiniPlayerArtworkDisc(
+                url: player.currentTrack?.album.picUrl?.resizedImageURL(200),
+                barHeight: barHeight,
+                isPlaying: player.isPlaying
+            )
 
             VStack(alignment: .leading, spacing: metadataSpacing) {
                 Text(player.currentTrack?.name ?? "")
@@ -538,14 +550,24 @@ struct IOSMiniPlayerBar: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .contentShape(Rectangle())
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var artworkSize: CGFloat {
-        presentation.isInline ? 28 : 32
+    /// The measured glass height, falling back to typical values until the
+    /// first layout pass and clamped so an odd measurement (an unbounded
+    /// proposal, say) can't blow the disc up.
+    private var barHeight: CGFloat {
+        guard measuredBarHeight > 0 else {
+            switch presentation {
+            case .bottomAccessory: return 48
+            case .inlineAccessory: return 40
+            case .legacyOverlay: return Self.legacyBarHeight
+            }
+        }
+        return min(max(measuredBarHeight, 28), 64)
     }
 
     private var titleFont: Font {
@@ -587,6 +609,33 @@ struct IOSMiniPlayerBar: View {
                 player.showNowPlaying = true
             }
         }
+    }
+}
+
+/// The mini player's circular artwork, sized as a share of the bar height and
+/// centred on the bar's leading end cap, so it stays concentric with the
+/// capsule glass at any size.
+struct MiniPlayerArtworkDisc: View {
+    @EnvironmentObject private var settings: SettingsManager
+    let url: URL?
+    let barHeight: CGFloat
+    let isPlaying: Bool
+    var rotation: ArtworkDiscRotation = .shared
+
+    var body: some View {
+        let diameter = barHeight * settings.miniPlayerArtworkScale
+        SpinningArtworkDisc(
+            url: url,
+            diameter: diameter,
+            isPlaying: isPlaying,
+            revolutionsPerMinute: settings.miniPlayerArtworkSpins ? settings.miniPlayerArtworkRPM : 0,
+            rotation: rotation
+        )
+        .shadow(color: .black.opacity(0.15), radius: 4, y: 1)
+        // The bar has no leading padding of its own: this inset puts the
+        // disc's centre at barHeight / 2 from the leading edge, the centre of
+        // the capsule's end cap.
+        .padding(.leading, (barHeight - diameter) / 2)
     }
 }
 

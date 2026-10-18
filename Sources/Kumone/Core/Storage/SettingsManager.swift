@@ -123,6 +123,10 @@ final class SettingsManager: ObservableObject {
         static let enableAudioCache = "settings.enableAudioCache"
         static let audioCacheSizeMB = "settings.audioCacheSizeMB"
         static let audioCacheAutomatic = "settings.audioCacheAutomatic"
+        static let miniPlayerArtworkScale = "settings.miniPlayerArtworkScale"
+        static let miniPlayerArtworkSpins = "settings.miniPlayerArtworkSpins"
+        static let miniPlayerArtworkRPM = "settings.miniPlayerArtworkRPM"
+        static let circularSystemArtwork = "settings.circularSystemArtwork"
     }
 
     @Published var audioQuality: AudioQuality {
@@ -319,6 +323,36 @@ final class SettingsManager: ObservableObject {
             )
         }
     }
+
+    static let miniPlayerArtworkScaleRange = 0.5...1.0
+    static let miniPlayerArtworkRPMRange = 1.0...20.0
+
+    /// Diameter of the iOS mini player's disc artwork as a share of the bar's
+    /// height. A share rather than points keeps the disc concentric with the
+    /// glass in every bar layout (expanded, inline, pre-iOS 26 overlay).
+    @Published var miniPlayerArtworkScale: Double {
+        didSet { UserDefaults.standard.set(miniPlayerArtworkScale, forKey: Keys.miniPlayerArtworkScale) }
+    }
+
+    /// Turn the mini player's disc while music plays.
+    @Published var miniPlayerArtworkSpins: Bool {
+        didSet { UserDefaults.standard.set(miniPlayerArtworkSpins, forKey: Keys.miniPlayerArtworkSpins) }
+    }
+
+    /// Mini player disc speed, in revolutions per minute.
+    @Published var miniPlayerArtworkRPM: Double {
+        didSet { UserDefaults.standard.set(miniPlayerArtworkRPM, forKey: Keys.miniPlayerArtworkRPM) }
+    }
+
+    /// Hand the system Now Playing surfaces (Dynamic Island, lock screen,
+    /// Control Center) disc-shaped artwork. iOS draws those itself, so the
+    /// disc there is round but cannot turn.
+    @Published var circularSystemArtwork: Bool {
+        didSet {
+            UserDefaults.standard.set(circularSystemArtwork, forKey: Keys.circularSystemArtwork)
+            NowPlayingManager.shared.refreshArtwork()
+        }
+    }
     private init() {
         let defaults = UserDefaults.standard
         audioQuality = defaults.string(forKey: Keys.quality).flatMap(AudioQuality.init) ?? .exhigh
@@ -369,5 +403,17 @@ final class SettingsManager: ObservableObject {
             max(storedAmbientBackgroundIntensity, Self.mainWindowAmbientBackgroundIntensityRange.lowerBound),
             Self.mainWindowAmbientBackgroundIntensityRange.upperBound
         )
+        let storedArtworkScale = defaults.object(forKey: Keys.miniPlayerArtworkScale) as? Double ?? 0.8
+        miniPlayerArtworkScale = min(
+            max(storedArtworkScale, Self.miniPlayerArtworkScaleRange.lowerBound),
+            Self.miniPlayerArtworkScaleRange.upperBound
+        )
+        miniPlayerArtworkSpins = defaults.object(forKey: Keys.miniPlayerArtworkSpins) as? Bool ?? true
+        let storedArtworkRPM = defaults.object(forKey: Keys.miniPlayerArtworkRPM) as? Double ?? 4
+        miniPlayerArtworkRPM = min(
+            max(storedArtworkRPM, Self.miniPlayerArtworkRPMRange.lowerBound),
+            Self.miniPlayerArtworkRPMRange.upperBound
+        )
+        circularSystemArtwork = defaults.object(forKey: Keys.circularSystemArtwork) as? Bool ?? false
     }
 }

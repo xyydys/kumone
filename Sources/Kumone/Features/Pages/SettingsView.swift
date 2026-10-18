@@ -181,6 +181,10 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                 #endif
             }
+            #if os(iOS)
+
+            miniPlayerArtworkSection
+            #endif
 
             Section("存储") {
                 NavigationLink {
@@ -262,11 +266,125 @@ struct SettingsView: View {
 
     #endif
 
+    #if os(iOS)
+
+    private var miniPlayerArtworkSection: some View {
+        Section {
+            MiniPlayerArtworkPreview()
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("封面大小")
+                    Spacer()
+                    Text("\(Int((settings.miniPlayerArtworkScale * 100).rounded()))%")
+                        .foregroundStyle(.secondary)
+                }
+                Slider(
+                    value: $settings.miniPlayerArtworkScale,
+                    in: SettingsManager.miniPlayerArtworkScaleRange,
+                    step: 0.01
+                )
+                HStack {
+                    Text("50%")
+                    Spacer()
+                    Text("100%")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Toggle("播放时旋转封面", isOn: $settings.miniPlayerArtworkSpins)
+            if settings.miniPlayerArtworkSpins {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("旋转速度")
+                        Spacer()
+                        Text(miniPlayerArtworkSpeedLabel)
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(
+                        value: $settings.miniPlayerArtworkRPM,
+                        in: SettingsManager.miniPlayerArtworkRPMRange,
+                        step: 1
+                    )
+                    HStack {
+                        Text("慢")
+                        Spacer()
+                        Text("快")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+
+            Toggle("灵动岛圆形封面", isOn: $settings.circularSystemArtwork)
+            Text("灵动岛、锁屏和控制中心的播放卡片由系统绘制，只能换成圆形封面，无法旋转")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text("播放悬浮条")
+        } footer: {
+            Text("封面大小按悬浮条高度计算，始终与玻璃同心；暂停时停在当前角度。开启“减弱动态效果”时不旋转。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var miniPlayerArtworkSpeedLabel: String {
+        let rpm = settings.miniPlayerArtworkRPM
+        let seconds = 60 / rpm
+        let secondsText = seconds.rounded() == seconds ? "\(Int(seconds))" : String(format: "%.1f", seconds)
+        return "\(Int(rpm.rounded())) 转/分 · 每圈 \(secondsText) 秒"
+    }
+    #endif
+
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
     }
 
 }
+
+#if os(iOS)
+/// A stand-in mini player so the disc's size and speed can be tuned while the
+/// real bar is hidden behind the settings sheet. It always spins, using its own
+/// clock so the real bar's paused angle is left alone.
+private struct MiniPlayerArtworkPreview: View {
+    @EnvironmentObject private var player: PlayerService
+    @StateObject private var rotation = ArtworkDiscRotation()
+
+    private let barHeight: CGFloat = 48
+
+    var body: some View {
+        HStack(spacing: 8) {
+            MiniPlayerArtworkDisc(
+                url: player.currentTrack?.album.picUrl?.resizedImageURL(200),
+                barHeight: barHeight,
+                isPlaying: true,
+                rotation: rotation
+            )
+            VStack(alignment: .leading, spacing: 3) {
+                Text(player.currentTrack?.name ?? String(localized: "歌曲名"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                Text(player.currentTrack?.artistNames ?? String(localized: "歌手"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.trailing, 16)
+        .frame(height: barHeight)
+        .background(.regularMaterial, in: Capsule())
+        .overlay {
+            Capsule()
+                .strokeBorder(.primary.opacity(0.08), lineWidth: 0.5)
+        }
+        .padding(.vertical, 4)
+        .accessibilityHidden(true)
+    }
+}
+#endif
 
 #if os(macOS)
 /// A Settings scene keeps its preference-style toolbar even when given a
