@@ -1335,10 +1335,12 @@ private struct CompactTrackHeader: View {
                             Label("下一首播放", systemImage: "text.line.first.and.arrowtriangle.forward")
                         }
 
-                        Button {
-                            showAddToPlaylist = true
-                        } label: {
-                            Label("加入歌单…", systemImage: "music.note.list")
+                        if !track.isExternal {
+                            Button {
+                                showAddToPlaylist = true
+                            } label: {
+                                Label("加入歌单…", systemImage: "music.note.list")
+                            }
                         }
 
                         Divider()
@@ -1349,13 +1351,15 @@ private struct CompactTrackHeader: View {
                         Divider()
                         #endif
 
-                        Button {
-                            Platform.copyToPasteboard(
-                                string: "https://music.163.com/#/song?id=\(track.id)"
-                            )
-                            ToastCenter.shared.show(String(localized: "链接已复制"))
-                        } label: {
-                            Label("复制链接", systemImage: "link")
+                        if !track.isExternal {
+                            Button {
+                                Platform.copyToPasteboard(
+                                    string: "https://music.163.com/#/song?id=\(track.id)"
+                                )
+                                ToastCenter.shared.show(String(localized: "链接已复制"))
+                            } label: {
+                                Label("复制链接", systemImage: "link")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis")
@@ -2144,10 +2148,12 @@ private struct MinimalTrackInfoRow: View {
                 Label("下一首播放", systemImage: "text.line.first.and.arrowtriangle.forward")
             }
 
-            Button {
-                showAddToPlaylist = true
-            } label: {
-                Label("加入歌单…", systemImage: "music.note.list")
+            if !track.isExternal {
+                Button {
+                    showAddToPlaylist = true
+                } label: {
+                    Label("加入歌单…", systemImage: "music.note.list")
+                }
             }
 
             Divider()
@@ -2158,13 +2164,15 @@ private struct MinimalTrackInfoRow: View {
             Divider()
             #endif
 
-            Button {
-                Platform.copyToPasteboard(
-                    string: "https://music.163.com/#/song?id=\(track.id)"
-                )
-                ToastCenter.shared.show(String(localized: "链接已复制"))
-            } label: {
-                Label("复制链接", systemImage: "link")
+            if !track.isExternal {
+                Button {
+                    Platform.copyToPasteboard(
+                        string: "https://music.163.com/#/song?id=\(track.id)"
+                    )
+                    ToastCenter.shared.show(String(localized: "链接已复制"))
+                } label: {
+                    Label("复制链接", systemImage: "link")
+                }
             }
         } label: {
             Image(systemName: "ellipsis")

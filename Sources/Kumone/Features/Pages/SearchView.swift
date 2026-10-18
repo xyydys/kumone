@@ -79,22 +79,7 @@ struct SearchView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Picker("", selection: $model.tab) {
-                        ForEach(SearchViewModel.Tab.allCases) { tab in
-                            Text(LocalizedStringKey(tab.rawValue)).tag(tab)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .padding(.horizontal, Theme.Layout.contentInset)
-                    .padding(.top, 12)
-
-                    if model.isLoading && currentEmpty {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, minHeight: 300)
-                    } else {
-                        tabContent
-                    }
+                    NeteaseSearchResults(model: model)
                 } else {
                     emptySearchPrompt
                 }
@@ -121,9 +106,6 @@ struct SearchView: View {
         }
         #endif
         .navigationTitle(searchText.isEmpty ? "搜索" : String(localized: "搜索：\(searchText)"))
-        .task(id: model.tab) {
-            await model.load(tab: model.tab)
-        }
     }
 
     private var emptySearchPrompt: some View {
@@ -141,6 +123,37 @@ struct SearchView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 32)
+    }
+}
+
+/// NetEase's own results — 综合 / 单曲 / 歌手 / 专辑 / 歌单 — for a query
+/// already set on `model`. Shared by `SearchView` and the iOS aggregated
+/// search page.
+struct NeteaseSearchResults: View {
+    @ObservedObject var model: SearchViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Picker("", selection: $model.tab) {
+                ForEach(SearchViewModel.Tab.allCases) { tab in
+                    Text(LocalizedStringKey(tab.rawValue)).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, Theme.Layout.contentInset)
+            .padding(.top, 12)
+
+            if model.isLoading && currentEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 300)
+            } else {
+                tabContent
+            }
+        }
+        .task(id: model.tab) {
+            await model.load(tab: model.tab)
+        }
     }
 
     private var currentEmpty: Bool {

@@ -22,6 +22,16 @@ env:
   IPA_NAME: Kumone-iOS-personal.ipa
 
 jobs:
+  # The custom-source runtime and models run on macOS too, so their tests
+  # exercise the real JavaScriptCore without a simulator.
+  core-tests:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Custom-source and mini-player tests
+        run: swift test --filter 'LXScriptInfoTests|LXMusicInfoTests|LXScriptRuntimeTests|ArtworkDiscRotationTests'
+
   ipa:
     runs-on: macos-26
     timeout-minutes: 60
@@ -67,5 +77,5 @@ jobs:
           gh release create "$RELEASE_TAG" "dist/$IPA_NAME" \
             --prerelease \
             --target "$GITHUB_SHA" \
-            --title "Kumone iOS（个人分支 · 圆形旋转封面）" \
+            --title "Kumone iOS（个人分支）" \
             --notes "分支 ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}，基于 ${VERSION}，未签名 IPA，用侧载工具安装。"

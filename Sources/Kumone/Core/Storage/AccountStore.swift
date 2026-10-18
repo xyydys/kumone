@@ -133,6 +133,11 @@ final class AccountStore: ObservableObject {
     }
 
     func toggleLike(trackID: Int) async {
+        // Negative ids are songs from custom sources, unknown to NetEase.
+        guard trackID > 0 else {
+            ToastCenter.shared.show(String(localized: "自定义音源的歌曲无法收藏到网易云"))
+            return
+        }
         guard isLoggedIn else {
             ToastCenter.shared.show(String(localized: "登录后即可收藏歌曲"))
             return

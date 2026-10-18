@@ -49,6 +49,9 @@ public struct IOSMainWindow: View {
             .environment(\.openLogin, { showLogin = true })
             .environment(\.openDestination, openDestination)
             .task {
+                // Before anything can play: a restored queue may hold songs
+                // only the custom-source scripts can resolve.
+                LXSourceManager.shared.bootstrap()
                 await DownloadManager.shared.start()
                 await account.bootstrap()
                 if settings.autoCheckUpdates {
@@ -245,7 +248,7 @@ public struct IOSMainWindow: View {
             }
 
             Tab(value: .search, role: .search) {
-                tabStack(.search) { SearchView(query: "") }
+                tabStack(.search) { AggregatedSearchView() }
             } label: {
                 Label("搜索", systemImage: "magnifyingglass")
             }
@@ -258,7 +261,7 @@ public struct IOSMainWindow: View {
                 page(.home) { tabStack(.home) { HomeView() } }
                 page(.explore) { tabStack(.explore) { ExploreView() } }
                 page(.fm) { tabStack(.fm) { FMView() } }
-                page(.search) { tabStack(.search) { SearchView(query: "") } }
+                page(.search) { tabStack(.search) { AggregatedSearchView() } }
                 page(.library) { tabStack(.library) { IOSLibraryView(showLogin: $showLogin) } }
             }
 

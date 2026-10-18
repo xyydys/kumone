@@ -7,6 +7,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     #if os(macOS)
     @ObservedObject private var downloader = StemModelDownloader.shared
+    #else
+    @ObservedObject private var lxSources = LXSourceManager.shared
     #endif
 
     var body: some View {
@@ -111,6 +113,24 @@ struct SettingsView: View {
                     Text("音源")
                 }
             }
+            #if os(iOS)
+
+            Section {
+                NavigationLink {
+                    LXSourcesSettingsView()
+                } label: {
+                    LabeledContent {
+                        Text(customSourceSummary)
+                    } label: {
+                        Label("自定义音源", systemImage: "square.stack.3d.up")
+                    }
+                }
+            } footer: {
+                Text("兼容 LX Music（洛雪音乐）音源脚本，用于聚合搜索和解锁播放")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            #endif
 
             Section("外观") {
                 Picker("主题", selection: $settings.appearance) {
@@ -300,6 +320,11 @@ struct SettingsView: View {
     #endif
 
     #if os(iOS)
+
+    private var customSourceSummary: String {
+        let enabled = lxSources.scripts.filter(\.isEnabled).count
+        return enabled == 0 ? String(localized: "未启用") : String(localized: "\(enabled) 个已启用")
+    }
 
     private var miniPlayerArtworkSection: some View {
         Section {

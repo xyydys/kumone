@@ -105,6 +105,9 @@ struct TrackRow: View {
                     if track.fee == 1 {
                         VIPBadge()
                     }
+                    if let external = track.external {
+                        SourceBadge(name: external.platformName)
+                    }
                 }
                 artistLinks
             }
@@ -305,16 +308,18 @@ struct TrackRow: View {
             #else
             TrackDownloadButton(track: track, isVisible: false)
             #endif
-            let liked = account.isLiked(track.id)
-            Button {
-                Task { await account.toggleLike(trackID: track.id) }
-            } label: {
-                Image(systemName: liked ? "heart.fill" : "heart")
-                    .font(.system(size: 12))
-                    .foregroundStyle(liked ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.secondary))
+            if !track.isExternal {
+                let liked = account.isLiked(track.id)
+                Button {
+                    Task { await account.toggleLike(trackID: track.id) }
+                } label: {
+                    Image(systemName: liked ? "heart.fill" : "heart")
+                        .font(.system(size: 12))
+                        .foregroundStyle(liked ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.secondary))
+                }
+                .buttonStyle(.pressable)
+                .opacity(liked || isHovering ? 1 : 0)
             }
-            .buttonStyle(.pressable)
-            .opacity(liked || isHovering ? 1 : 0)
 
             Text(Formatters.duration(track.duration))
                 .font(.system(size: 11.5).monospacedDigit())
@@ -331,12 +336,14 @@ struct TrackRow: View {
             player.addToPlayNext(track)
         }
         Divider()
-        let liked = account.isLiked(track.id)
-        Button(liked ? String(localized: "从「我喜欢」中移除") : String(localized: "添加到「我喜欢」")) {
-            Task { await account.toggleLike(trackID: track.id) }
-        }
-        Button("收藏到歌单…") {
-            showAddToPlaylist = true
+        if !track.isExternal {
+            let liked = account.isLiked(track.id)
+            Button(liked ? String(localized: "从「我喜欢」中移除") : String(localized: "添加到「我喜欢」")) {
+                Task { await account.toggleLike(trackID: track.id) }
+            }
+            Button("收藏到歌单…") {
+                showAddToPlaylist = true
+            }
         }
         if let pid = removableFromPlaylistID {
             Button("从歌单中删除", role: .destructive) {
@@ -381,11 +388,32 @@ struct TrackRow: View {
                 openDestination(.artist(artist.id))
             }
         }
-        Divider()
-        Button("复制链接") {
-            Platform.copyToPasteboard(string: "https://music.163.com/#/song?id=\(track.id)")
-            ToastCenter.shared.show(String(localized: "链接已复制"))
+        if !track.isExternal {
+            Divider()
+            Button("复制链接") {
+                Platform.copyToPasteboard(string: "https://music.163.com/#/song?id=\(track.id)")
+                ToastCenter.shared.show(String(localized: "链接已复制"))
+            }
         }
+    }
+}
+
+/// Which custom source a song came from, beside its title.
+struct SourceBadge: View {
+    let name: String
+
+    var body: some View {
+        Text(name)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1.5)
+            .overlay(
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .strokeBorder(.secondary.opacity(0.5), lineWidth: 0.5)
+            )
+            .fixedSize()
     }
 }
 

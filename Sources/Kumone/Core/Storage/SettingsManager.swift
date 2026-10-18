@@ -222,7 +222,7 @@ final class SettingsManager: ObservableObject {
     }
 
     var canResolveUnblockedTracks: Bool {
-        enableUnblock && !enabledAudioSourceIDs.isEmpty
+        enableUnblock && (!enabledAudioSourceIDs.isEmpty || LXSourceManager.shared.hasMusicURLProvider(for: "wy"))
     }
 
     /// Floating desktop lyrics window (LyricsX-style).

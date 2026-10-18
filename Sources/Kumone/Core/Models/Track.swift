@@ -54,6 +54,12 @@ struct Track: Codable, Hashable, Identifiable {
     let isCloud: Bool
     /// Some endpoints (cloudsearch, FM) embed the privilege in the track itself.
     let embeddedPrivilege: TrackPrivilege?
+    /// Set for a song found through an LX custom-source script rather than
+    /// NetEase. Its `id` is then a synthetic negative number (see
+    /// `LXMusicInfo.syntheticID`), so it never collides with a NetEase id.
+    let external: ExternalTrackRef?
+
+    var isExternal: Bool { external != nil }
 
     var artistNames: String { artists.map(\.name).joined(separator: " / ") }
     var duration: TimeInterval { TimeInterval(durationMS) / 1000 }
@@ -66,6 +72,7 @@ struct Track: Codable, Hashable, Identifiable {
         case dt, duration
         case alia, alias
         case tns, fee, mv, no, cd, noCopyrightRcmd, pc, privilege
+        case external = "kumoneExternal"
     }
 
     init(from decoder: Decoder) throws {
@@ -90,6 +97,27 @@ struct Track: Codable, Hashable, Identifiable {
             && (try? c.decodeNil(forKey: .noCopyrightRcmd)) == false
         isCloud = c.contains(.pc) && (try? c.decodeNil(forKey: .pc)) == false
         embeddedPrivilege = try? c.decode(TrackPrivilege.self, forKey: .privilege)
+        external = try? c.decode(ExternalTrackRef.self, forKey: .external)
+    }
+
+    /// A song from an LX custom source.
+    init(external: ExternalTrackRef, id: Int, name: String, artists: [String],
+         albumName: String, picUrl: String?, durationMS: Int) {
+        self.id = id
+        self.name = name
+        self.artists = artists.map { ArtistRef(id: 0, name: $0) }
+        self.album = AlbumRef(id: 0, name: albumName, picUrl: picUrl)
+        self.durationMS = durationMS
+        self.alias = []
+        self.transNames = []
+        self.fee = 0
+        self.mvID = 0
+        self.trackNo = 0
+        self.disc = nil
+        self.noCopyright = false
+        self.isCloud = false
+        self.embeddedPrivilege = nil
+        self.external = external
     }
 
     func encode(to encoder: Encoder) throws {
@@ -108,6 +136,7 @@ struct Track: Codable, Hashable, Identifiable {
         if isCloud { try c.encode([String: String](), forKey: .pc) }
         if noCopyright { try c.encode([String: String](), forKey: .noCopyrightRcmd) }
         try c.encodeIfPresent(embeddedPrivilege, forKey: .privilege)
+        try c.encodeIfPresent(external, forKey: .external)
     }
 }
 

@@ -740,7 +740,9 @@ final class PlayerService: ObservableObject {
                                 skipsLocalCopies: Bool = false,
                                 resumeAt: TimeInterval = 0) async {
         let quality = SettingsManager.shared.audioQuality.rawValue
-        let allowsUnblock = SettingsManager.shared.canResolveUnblockedTracks
+        // An external song's cached copy is tagged as third-party audio, and
+        // third-party audio is all it ever has.
+        let allowsUnblock = track.isExternal || SettingsManager.shared.canResolveUnblockedTracks
         let cacheEnabled = SettingsManager.shared.enableAudioCache && !skipsLocalCopies
 
         // A downloaded copy beats the network, and is all there is without one.
@@ -787,6 +789,11 @@ final class PlayerService: ObservableObject {
             if cacheEnabled, await loadFallbackCache(for: track, generation: generation, allowsUnblock: allowsUnblock, resumeAt: resumeAt) { return }
             guard generation == resolveGeneration else { return }
             unavailableOffline(track, generation: generation)
+            return
+        }
+
+        if track.isExternal {
+            await resolveAndLoadExternal(track, generation: generation, resumeAt: resumeAt)
             return
         }
 
@@ -848,12 +855,86 @@ final class PlayerService: ObservableObject {
         _ = await loadResolvedURL(track, url: url, durationMS: data?.time, generation: generation, resumeAt: resumeAt)
     }
 
+    /// A song from an LX custom source: its scripts are the only way to a URL.
+    private func resolveAndLoadExternal(_ track: Track, generation: Int, resumeAt: TimeInterval) async {
+        do {
+            let resolved = try await LXSourceManager.shared.musicURL(
+                for: track,
+                quality: SettingsManager.shared.audioQuality
+            )
+            guard generation == resolveGeneration else { return }
+            unblockSource = resolved.provider
+            servedQuality = nil
+            isTrial = false
+            let result = await loadResolvedURL(track, url: resolved.url, durationMS: nil,
+                                               generation: generation, resumeAt: resumeAt)
+            if case .loaded = result { return }
+            guard generation == resolveGeneration else { return }
+        } catch {
+            guard generation == resolveGeneration else { return }
+            print("Custom source failed for \(track.name): \(error.localizedDescription)")
+        }
+        if SettingsManager.shared.enableAudioCache,
+           await loadFallbackCache(for: track, generation: generation, allowsUnblock: true, resumeAt: resumeAt) {
+            return
+        }
+        guard generation == resolveGeneration else { return }
+        handleUnplayable(track)
+    }
+
+    /// Asks the user's custom-source scripts for a NetEase song NetEase
+    /// would not serve, ahead of the built-in third-party sources.
+    private func resolveAndLoadFromScripts(
+        _ track: Track,
+        generation: Int,
+        requiresActivePlayback: Bool,
+        resumeAt: TimeInterval
+    ) async -> Bool {
+        guard !track.isExternal,
+              !attemptedUnblockSources.contains(.lxScript),
+              LXSourceManager.shared.hasMusicURLProvider(for: "wy")
+        else { return false }
+        attemptedUnblockSources.insert(.lxScript)
+        guard let resolved = try? await LXSourceManager.shared.musicURL(
+            for: track,
+            quality: SettingsManager.shared.audioQuality
+        ) else { return false }
+        guard generation == resolveGeneration,
+              !requiresActivePlayback || isPlaying
+        else { return false }
+
+        currentUnblockSourceID = .lxScript
+        unblockSource = resolved.provider
+        servedQuality = nil
+        isTrial = false
+        let loadResult = await loadResolvedURL(track, url: resolved.url, durationMS: nil,
+                                               generation: generation, resumeAt: resumeAt)
+        guard case .loaded = loadResult else {
+            if generation == resolveGeneration, currentUnblockSourceID == .lxScript {
+                currentUnblockSourceID = nil
+                unblockSource = nil
+            }
+            return false
+        }
+        ToastCenter.shared.show(String(localized: "已使用第三方音源：\(resolved.provider)"))
+        return true
+    }
+
     private func resolveAndLoadUnblocked(
         _ track: Track,
         generation: Int,
         requiresActivePlayback: Bool = false,
         resumeAt: TimeInterval = 0
     ) async -> Bool {
+        guard generation == resolveGeneration,
+              !requiresActivePlayback || isPlaying
+        else { return false }
+
+        if await resolveAndLoadFromScripts(track, generation: generation,
+                                           requiresActivePlayback: requiresActivePlayback, resumeAt: resumeAt) {
+            return true
+        }
+
         let enabledSources = SettingsManager.shared.enabledAudioSourceIDs
         guard !enabledSources.isEmpty else { return false }
 
@@ -1255,6 +1336,13 @@ final class PlayerService: ObservableObject {
     }
 
     private func loadLyrics(for track: Track, generation: Int) async {
+        if track.isExternal {
+            guard !usesOfflineQueue, let response = await LXSourceManager.shared.lyrics(for: track),
+                  generation == resolveGeneration else { return }
+            lyrics = LyricsParser.parse(response)
+            updateLyricsCursor(at: progress)
+            return
+        }
         let scope = offlineAccountScope
         if let scope, let saved = await OfflineMetadataStore.shared.lyrics(trackID: track.id, scope: scope) {
             guard generation == resolveGeneration else { return }
@@ -1319,7 +1407,8 @@ final class PlayerService: ObservableObject {
         guard isPlaying, !isBuffering, SettingsManager.shared.enableAudioCache, let current = currentTrack,
               QueuePrefetcher.permits(network: networkState, lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled)
         else { queuePrefetcher.update(nil); return }
-        let upcoming = PrefetchLimits().window(nextCandidates().map(\.track))
+        // The prefetcher resolves through NetEase; external songs are played on demand.
+        let upcoming = PrefetchLimits().window(nextCandidates().map(\.track).filter { !$0.isExternal })
         guard !upcoming.isEmpty else { queuePrefetcher.update(nil); return }
         let scope = offlineAccountScope
         let pending = Set(DownloadManager.shared.pendingJobs.filter { $0.accountScope == scope }.map(\.track.id))
@@ -1490,7 +1579,7 @@ final class PlayerService: ObservableObject {
     // MARK: - Scrobble
 
     private func scrobbleStartIfNeeded() {
-        guard let track = currentTrack, !startScrobbled else { return }
+        guard let track = currentTrack, !track.isExternal, !startScrobbled else { return }
         startScrobbled = true
         let trackID = track.id
         let sourceID = source.sourceID
@@ -1500,7 +1589,7 @@ final class PlayerService: ObservableObject {
     }
 
     private func scrobbleIfNeeded(completed: Bool) {
-        guard let track = currentTrack, !scrobbled, progress > 1 else { return }
+        guard let track = currentTrack, !track.isExternal, !scrobbled, progress > 1 else { return }
         scrobbled = true
         let seconds = completed ? Int(duration) : Int(progress)
         let sourceID = source.sourceID

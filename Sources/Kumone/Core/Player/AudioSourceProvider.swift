@@ -4,12 +4,19 @@ enum AudioSourceID: String, CaseIterable, Hashable {
     case pyncmd
     case kugou
     case kuwo
+    /// The user's LX custom-source scripts. Not a built-in source: it has no
+    /// toggle of its own and is left out of `allCases`.
+    case lxScript
+
+    /// The built-in sources, each with a toggle in Settings.
+    static let allCases: [AudioSourceID] = [.pyncmd, .kugou, .kuwo]
 
     var displayName: String {
         switch self {
         case .pyncmd: return "pyncmd"
         case .kugou: return String(localized: "酷狗音乐")
         case .kuwo: return String(localized: "酷我音乐")
+        case .lxScript: return String(localized: "自定义音源")
         }
     }
 }

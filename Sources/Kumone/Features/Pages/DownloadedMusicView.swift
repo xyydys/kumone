@@ -369,7 +369,9 @@ struct TrackDownloadActions: View {
     private var job: DownloadJob? { downloads.jobsByTrackID[track.id] }
 
     var body: some View {
-        if let job, job.status == .complete {
+        if track.isExternal {
+            EmptyView()
+        } else if let job, job.status == .complete {
             Button(role: .destructive) { Task { await downloads.deleteLocalAudio(trackID: track.id) } } label: {
                 actionLabel("移除下载", systemImage: "trash")
             }

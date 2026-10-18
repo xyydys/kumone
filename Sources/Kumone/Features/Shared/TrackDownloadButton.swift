@@ -33,7 +33,21 @@ struct TrackDownloadButton: View {
         if isDownloaded { return String(localized: "移除下载") }
         return String(localized: "下载")
     }
+
+    /// Custom-source songs cannot be downloaded; the slot keeps its width so
+    /// rows still line up.
+    @ViewBuilder
     var body: some View {
+        if track.isExternal {
+            Color.clear
+                .frame(width: 24, height: 24)
+                .accessibilityHidden(true)
+        } else {
+            control
+        }
+    }
+
+    private var control: some View {
         Button(action: activate) {
             TrackDownloadButtonIcon(isActive: isActive || isSubmitting, isComplete: isDownloaded && status == nil,
                                     showsFraction: isActive, progress: state.progress)
