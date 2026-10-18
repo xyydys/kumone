@@ -1,0 +1,71 @@
+name: Personal iOS IPA
+
+# Fork-only: builds an unsigned IPA of this personal branch for sideloading
+# and republishes it under one rolling prerelease, so the download link stays
+# the same across builds. Mirrors the "Build unsigned iOS IPA" step of
+# release.yml.
+
+on:
+  push:
+    branches: ["claude/round-spinning-artwork"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: personal-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RELEASE_TAG: personal-round-disc
+  IPA_NAME: Kumone-iOS-personal.ipa
+
+jobs:
+  ipa:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # build number = commit count, as in release.yml
+
+      - name: Derive version
+        run: |
+          # Match the upstream release this branch is based on, so the in-app
+          # updater (which polls upstream) does not report an update at once.
+          VERSION="$(awk '/^## [0-9]/ { print $2; exit }' CHANGELOG.md)"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+          xcodebuild -version
+
+      - name: Build unsigned iOS IPA
+        run: |
+          xcodebuild -workspace ios/KumoneIOS.xcworkspace -scheme KumoneIOS \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/ios-dd" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            build
+          APP="$RUNNER_TEMP/ios-dd/Build/Products/Release-iphoneos/KumoneIOS.app"
+          mkdir -p "$RUNNER_TEMP/payload/Payload" dist
+          cp -R "$APP" "$RUNNER_TEMP/payload/Payload/"
+          (cd "$RUNNER_TEMP/payload" && zip -qry "$GITHUB_WORKSPACE/dist/$IPA_NAME" Payload)
+          ls -la dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.IPA_NAME }}
+          path: dist/${{ env.IPA_NAME }}
+          retention-days: 30
+
+      - name: Publish rolling prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete "$RELEASE_TAG" --yes --cleanup-tag || true
+          gh release create "$RELEASE_TAG" "dist/$IPA_NAME" \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Kumone iOS（个人分支 · 圆形旋转封面）" \
+            --notes "分支 ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}，基于 ${VERSION}，未签名 IPA，用侧载工具安装。"
